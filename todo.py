@@ -28,6 +28,8 @@ from datetime import datetime, date
 logging.basicConfig(filename="todopy.log",level=logging.WARNING)
 
 VERSION = "development"
+REVISION = "$Id: 3cadad37c0610f34cc7d1fadfbe748d06d66a5fd $"
+
 try:
     import readline
 except ImportError:
@@ -83,8 +85,11 @@ TERM_COLORS = {
         "bold": "\033[1m",
         }
 
-TODO_DIR = _path("~/.todo")
-logging.debug('TODO_DIR (from home path): {0}.'.format(TODO_DIR))
+TODO_DIR = _path("D:\Python\Todo.txt-python-master\Test")
+# _path("~/.todo")
+# A guess at the directory that never gets corrected later. Hmmmm...
+
+logging.debug('TODO_DIR (from home path): {}.'.format(TODO_DIR))
 
 CONFIG = {
         "TODO_DIR": TODO_DIR,
@@ -98,6 +103,7 @@ CONFIG = {
         "PLAIN": False,
         "NO_PRI": False,
         "PRE_DATE": False,
+        "DATE_FORMAT": "%Y-%m-%d",
         "INVERT": False,
         "HIDE_PROJ": False,
         "HIDE_CONT": False,
@@ -293,18 +299,18 @@ def get_config(config_name="", dir_name=""):
 
     #Set an environment variable TODO_DIR
     os.environ["TODO_DIR"] = CONFIG["TODO_DIR"]
-    logging.debug('Set %TODO_DIR%: {0}'.format(os.environ["TODO_DIR"]))
+    logging.debug('Set %TODO_DIR%: {}'.format(os.environ["TODO_DIR"]))
 
     if CONFIG["TODOTXT_CFG_FILE"]:
         config_file = CONFIG["TODOTXT_CFG_FILE"]
-        logging.debug('Found CONFIG["TODOTXT_CFG_FILE"]: {0}'.format(CONFIG["TODOTXT_CFG_FILE"]))
+        logging.debug('Found CONFIG["TODOTXT_CFG_FILE"]: {}'.format(CONFIG["TODOTXT_CFG_FILE"]))
 
     config_file = _path(config_file)
     perms = os.F_OK | os.R_OK | os.W_OK
     if not (os.access(CONFIG["TODO_DIR"], perms | os.X_OK) and \
             os.access(config_file, perms)) and \
             not config_name:
-        logging.warning('Problem accessing {0}. Reverting to default config.'.format(config_file))
+        logging.warning('Problem accessing {}. Reverting to default config.'.format(config_file))
         default_config()
     else:
         logging.debug('Try to parse it.')
@@ -313,7 +319,10 @@ def get_config(config_name="", dir_name=""):
 
         for line in _iter_actual_lines_(config_file):
             # Extract VAR=VAL and then split VAR and VAL
-            # For Windows users replace backslashes.
+               # Why do we need that RegEx for this? It seems all we're really doing is eliminating
+            # export keyword? Why are we dumping everything after the first 'bad' character?
+            
+         # For Windows users replace backslashes.
             line = line.replace('\\','/')
             var = strip_re.sub('\g<1>', line.strip()).split('=')
             var[1] = var[1].strip('"')
@@ -524,16 +533,18 @@ def add_todo(args):
     prepend = CONFIG["PRE_DATE"]
 
 
+      df = CONFIG["DATE_FORMAT"]
+    logging.debug('CONFIG["DATE_FORMAT"]: {}'.format(CONFIG["DATE_FORMAT"]))
     l = len([1 for l in iter_todos()]) + 1
     pri_re = re.compile('(\([A-X]\))')
 
     if pri_re.match(line) and prepend:
-
+        df = " " + df + " "
         line = pri_re.sub(concat(["\g<1>",
-            datetime.now().strftime(" %Y-%m-%d ")]), line)
+            datetime.now().strftime(df)]), line)
     elif prepend:
-
-        line = concat([datetime.now().strftime("%Y-%m-%d "), line])
+        df = df + " "
+        line = concat([datetime.now().strftime(df), line])
 
     with open(CONFIG["TODO_FILE"], "a") as fd:
         fd.write(concat([line, "\n"]))
@@ -542,9 +553,7 @@ def add_todo(args):
     print(s)
     if CONFIG["USE_GIT"]:
         _git_commit([CONFIG["TODO_FILE"]], s)
-
-
-@usage('\taddm "First item to do +project @context #{yyyy-mm-dd}',
+sage('\taddm "First item to do +project @context #{yyyy-mm-dd}',
     '\t\tSecond item to do +project @context #{yyyy-mm-dd}',
     '\t\t...', '\t\tLast item to do +project @context #{yyyy-mm-dd}',
     '\t\tAdds each line as a separate item to your todo.txt file.\n')
@@ -576,8 +585,8 @@ def do_todo(line):
         rewrite_file(fd, lines)
         fd.close()
 
-        today = datetime.now().strftime("%Y-%m-%d")
-        removed = concat(["x", today,
+            today = datetime.now().strftime(CONFIG["DATE_FORMAT"])
+    removed = concat(["x", today,
             re.sub("\([A-X]\)\s?", "", removed)], " ")
 
         files = [CONFIG["TODO_FILE"]]
@@ -815,13 +824,13 @@ def _list_(by, regexp):
         regexp = re.compile(regexp)
         for line in lines:
             match = regexp.findall(line)
-            logging.debug('{0};{1}'.format(line,match))
+            logging.debug('{};{}'.format(line,match))
             if match:
                 line = concat(["\t", line])
                 for i in match:
                     if by == "date":
-                        i = date(int(i[0]), int(i[1]), int(i[2]))
-                    if i not in by_list:
+                            i = datetime.strptime(i,CONFIG["DATE_FORMAT"])
+                if i not in by_list:
                         by_list.append(i)
                         todo[i] = [line]
                     else:
@@ -915,9 +924,20 @@ def list_all():
     '\t\tLists all items in your todo.txt file sorted by date.\n')
 def list_date():
     """List todo items by date #{yyyy-mm-dd}."""
-    lines, sorted = _list_("date", "#\{(\d{4})-(\d{1,2})-(\d{1,2})\}")
 
-    print(concat(sorted)[:-1])
+
+
+
+
+    # Now with custom date formats we will need to be able parse according to that format.
+    df = CONFIG["DATE_FORMAT"]
+    
+    if df == "%y%m%d":
+        search = "(\d{6})\s"
+    else: # Assume df == "%Y-%m-%d"
+        search = "(\d{4})-(\d{1,2})-(\d{1,2})"
+    lines, sorted = _list_("date", search)
+rint(concat(sorted)[:-1])
     print_x_of_y(sorted, lines)
 
 
@@ -966,7 +986,9 @@ def toggle_opt(option, opt_str, val, parser):
     '--plain-mode', '--no-priority', '--prepend-date', '-i',
     '--invert-colors'] and toggle that option in CONFIG.
     """
-    toggle_dict = {"-+": "HIDE_PROJ", "-@": "HIDE_CONT", "-#": "HIDE_DATE",
+    t    # But why don't we write the toggle to the config file?
+    
+oggle_dict = {"-+": "HIDE_PROJ", "-@": "HIDE_CONT", "-#": "HIDE_DATE",
             "-p": "PLAIN", "-P": "NO_PRI", "-t": "PRE_DATE",
             "--plain-mode": "PLAIN", "--no-priority": "NO_PRI",
             "--prepend-date": "PRE_DATE", "-i": "INVERT",
