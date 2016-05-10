@@ -21,12 +21,13 @@
 import os
 import re
 import sys
+import logging
 from optparse import OptionParser
 from datetime import datetime, date
 
-VERSION = "development"
-REVISION = "$Id$"
+logging.basicConfig(filename="todopy.log",level=logging.WARNING)
 
+VERSION = "development"
 try:
     import readline
 except ImportError:
@@ -57,9 +58,11 @@ if os.name == "nt":
         from colorama import init
         init()
     except Exception:
+        logging.info('Colorama not found.')
         pass
     # colorama provides ANSI -> win32 color support
     # If they don't have it, no worries.
+
 PRIORITIES = uppercase[:24]
 
 # concat() is necessary long before the grouping of function declarations
@@ -81,6 +84,8 @@ TERM_COLORS = {
         }
 
 TODO_DIR = _path("~/.todo")
+logging.debug('TODO_DIR (from home path): {}.'.format(TODO_DIR))
+
 CONFIG = {
         "TODO_DIR": TODO_DIR,
         "TODOTXT_DEFAULT_ACTION": "list",
@@ -101,11 +106,9 @@ CONFIG = {
         "ACTIONS": None,
         }
 
-
 for p in PRIORITIES:
     CONFIG["PRI_{0}".format(p)] = "default"
 del(p, TODO_DIR)
-
 
 ### Helper Functions
 def todo_padding(include_done=False):
@@ -276,6 +279,9 @@ def _iter_actual_lines_(config_file):
 
 def get_config(config_name="", dir_name=""):
     """Read the config file"""
+    
+    logging.debug("Entered get_config with config: " + config_name + " and dir: " + dir_name + ".")
+    
     if dir_name:
         dir_name = _path(dir_name)
         CONFIG["TODO_DIR"] = dir_name
@@ -285,23 +291,30 @@ def get_config(config_name="", dir_name=""):
     if config_name:
         CONFIG["TODOTXT_CFG_FILE"] = _path(config_name)
 
+    #Set an environment variable TODO_DIR
     os.environ["TODO_DIR"] = CONFIG["TODO_DIR"]
+    logging.debug('Set %TODO_DIR%: {}'.format(os.environ["TODO_DIR"]))
 
     if CONFIG["TODOTXT_CFG_FILE"]:
         config_file = CONFIG["TODOTXT_CFG_FILE"]
+        logging.debug('Found CONFIG["TODOTXT_CFG_FILE"]: {}'.format(CONFIG["TODOTXT_CFG_FILE"]))
 
     config_file = _path(config_file)
     perms = os.F_OK | os.R_OK | os.W_OK
     if not (os.access(CONFIG["TODO_DIR"], perms | os.X_OK) and \
             os.access(config_file, perms)) and \
-        not config_name:
+            not config_name:
+        logging.warning('Problem accessing {}. Reverting to default config.'.format(config_file))
         default_config()
     else:
-        strip_re = re.compile('\w+\s([A-Za-z_$="./01]+).*')
+        logging.debug('Try to parse it.')
+        strip_re = re.compile('\w+\s([A-Za-z_%$=:"./01-]+).*')
         pri_re = re.compile('(PRI_[A-X]|DEFAULT)')
 
         for line in _iter_actual_lines_(config_file):
             # Extract VAR=VAL and then split VAR and VAL
+            # For Windows users replace backslashes.
+            line = line.replace('\\','/')
             var = strip_re.sub('\g<1>', line.strip()).split('=')
             var[1] = var[1].strip('"')
 
@@ -309,9 +322,9 @@ def get_config(config_name="", dir_name=""):
                 CONFIG[var[0]] ^= True
             elif var[1] in ("False", "0"):
                 CONFIG[var[0]] ^= False
-            elif pri_re.match(var[0]):
+            elif pri_re.match(var[0]): # Catch the priority colors.
                 CONFIG[var[0]] = var[1].strip('$').lower().replace('_', ' ')
-            else:
+            else: # If it's not a boolean or a priority, treat it as a path
                 CONFIG[var[0]] = os.path.expandvars(var[1])
 
             # make expandvars work for our vars too
@@ -509,13 +522,17 @@ def add_todo(args):
         line = prompt("Add:")
 
     prepend = CONFIG["PRE_DATE"]
+
+
     l = len([1 for l in iter_todos()]) + 1
     pri_re = re.compile('(\([A-X]\))')
 
     if pri_re.match(line) and prepend:
+
         line = pri_re.sub(concat(["\g<1>",
             datetime.now().strftime(" %Y-%m-%d ")]), line)
     elif prepend:
+
         line = concat([datetime.now().strftime("%Y-%m-%d "), line])
 
     with open(CONFIG["TODO_FILE"], "a") as fd:
@@ -798,6 +815,7 @@ def _list_(by, regexp):
         regexp = re.compile(regexp)
         for line in lines:
             match = regexp.findall(line)
+            logging.debug('{};{}'.format(line,match))
             if match:
                 line = concat(["\t", line])
                 for i in match:
@@ -898,6 +916,7 @@ def list_all():
 def list_date():
     """List todo items by date #{yyyy-mm-dd}."""
     lines, sorted = _list_("date", "#\{(\d{4})-(\d{1,2})-(\d{1,2})\}")
+
     print(concat(sorted)[:-1])
     print_x_of_y(sorted, lines)
 
@@ -986,7 +1005,6 @@ def load_actions():
             # For some reason there is a '' in the list `actions`
             pass
 ### End Add-on functionality
-
 
 ### Main components
 def opt_setup():
@@ -1106,6 +1124,7 @@ commands = {
 
 if __name__ == "__main__":
     CONFIG["TODO_PY"] = sys.argv[0]
+    logging.debug('Entered main with script name: ' + CONFIG["TODO_PY"] + ".")
     opts = opt_setup()
 
     valid, args = opts.parse_args()
@@ -1120,6 +1139,9 @@ if __name__ == "__main__":
                 ("log", 	(False, _git_log))]
                 )
 
+    logging.debug('TODO_FILE from get_config: ' + str(CONFIG["TODO_FILE"]))
+    logging.debug('PLAIN from get_config: ' + str(CONFIG["PLAIN"]))
+                
     if CONFIG["ACTIONS"]:
         load_actions()
 
