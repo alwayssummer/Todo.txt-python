@@ -84,7 +84,7 @@ TERM_COLORS = {
         }
 
 TODO_DIR = _path("~/.todo")
-logging.debug('TODO_DIR (from home path): {}.'.format(TODO_DIR))
+logging.debug('TODO_DIR (from home path): {0}.'.format(TODO_DIR))
 
 CONFIG = {
         "TODO_DIR": TODO_DIR,
@@ -293,18 +293,18 @@ def get_config(config_name="", dir_name=""):
 
     #Set an environment variable TODO_DIR
     os.environ["TODO_DIR"] = CONFIG["TODO_DIR"]
-    logging.debug('Set %TODO_DIR%: {}'.format(os.environ["TODO_DIR"]))
+    logging.debug('Set %TODO_DIR%: {0}'.format(os.environ["TODO_DIR"]))
 
     if CONFIG["TODOTXT_CFG_FILE"]:
         config_file = CONFIG["TODOTXT_CFG_FILE"]
-        logging.debug('Found CONFIG["TODOTXT_CFG_FILE"]: {}'.format(CONFIG["TODOTXT_CFG_FILE"]))
+        logging.debug('Found CONFIG["TODOTXT_CFG_FILE"]: {0}'.format(CONFIG["TODOTXT_CFG_FILE"]))
 
     config_file = _path(config_file)
     perms = os.F_OK | os.R_OK | os.W_OK
     if not (os.access(CONFIG["TODO_DIR"], perms | os.X_OK) and \
             os.access(config_file, perms)) and \
             not config_name:
-        logging.warning('Problem accessing {}. Reverting to default config.'.format(config_file))
+        logging.warning('Problem accessing {0}. Reverting to default config.'.format(config_file))
         default_config()
     else:
         logging.debug('Try to parse it.')
@@ -815,7 +815,7 @@ def _list_(by, regexp):
         regexp = re.compile(regexp)
         for line in lines:
             match = regexp.findall(line)
-            logging.debug('{};{}'.format(line,match))
+            logging.debug('{0};{1}'.format(line,match))
             if match:
                 line = concat(["\t", line])
                 for i in match:
